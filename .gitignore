@@ -1,0 +1,7 @@
+/bin/
+/*.gb
+
+# I keep a local copy of pandoc and other documentations here, but they
+# are linked in README and I don't want to distribute other people work.
+/docs/
+
