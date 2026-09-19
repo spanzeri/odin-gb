@@ -11,6 +11,8 @@ GB_SCREEN_WIDTH  :: 160
 GB_SCREEN_HEIGHT :: 144
 SCREEN_SCALE :: 4
 
+root_window: ^sdl.Window
+
 check_bit :: #force_inline proc "contextless" (v: $T, biti: u32) -> bool {
     return ((v >> biti) & 0x1) != 0
 }
@@ -18,6 +20,7 @@ check_bit :: #force_inline proc "contextless" (v: $T, biti: u32) -> bool {
 main :: proc() {
     context.logger = log.create_console_logger()
     defer log.destroy_console_logger(context.logger)
+    defer debug_log_close()
 
     when ODIN_DEBUG {
         track: mem.Tracking_Allocator
@@ -42,22 +45,21 @@ main :: proc() {
     defer sdl.Quit()
 
     // create window and renderer
-    window: ^sdl.Window
     renderer: ^sdl.Renderer
     sdl.CreateWindowAndRenderer(
         "odingb",
         GB_SCREEN_WIDTH * SCREEN_SCALE,
         GB_SCREEN_HEIGHT * SCREEN_SCALE,
         {},
-        &window,
+        &root_window,
         &renderer,
     )
-    if window == nil || renderer == nil {
+    if root_window == nil || renderer == nil {
         log.fatalf("Window creation failed with error: {}", string(sdl.GetError()))
     }
     defer {
         sdl.DestroyRenderer(renderer)
-        sdl.DestroyWindow(window)
+        sdl.DestroyWindow(root_window)
     }
 
     framebuffer := sdl.CreateTexture(renderer, .RGBA8888, .STREAMING, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT)

@@ -1,13 +1,23 @@
 package odin_gb
 
+import "core:log"
+import "core:os"
+import "core:strings"
+
 core_clock_counter: u32
 core_quit_requested: bool
 
 core_init :: proc () -> i32 {
-    // Load card
-    if !cart_load("tetris.gb") {
-        return -1
+    if len(os.args) > 1 && strings.ends_with(os.args[1], ".gb") {
+        log.infof("Loading cart from command argument: {}", os.args[1])
+        if !cart_load(os.args[1]) {
+            log.errorf("    Failed to read ROM")
+            os.exit(1)
+        }
+    } else {
+        cart_open_file()
     }
+
     cart_print_info()
 
     return 0

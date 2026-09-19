@@ -50,6 +50,10 @@ interrupt_raise_flag :: proc "contextless" (interrupt: Interrupt) {
     system_memory[ADDR_IO_IF] |= (1 << interrupt)
 }
 
+interrupt_flag_write :: proc "contextless" (value: u8) {
+    system_memory[ADDR_IO_IF] = value
+}
+
 interrupt_pending :: proc "contextless" () -> u8 {
     return system_memory[ADDR_IO_IE] & system_memory[ADDR_IO_IF] & INTERRUPT_MASK
 }

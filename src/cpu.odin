@@ -1,7 +1,8 @@
 package odin_gb
 
-import "core:fmt"
 import "core:log"
+
+cpu_debug_instructions := true
 
 CpuRunState :: enum {
     Running,
@@ -84,6 +85,11 @@ cpu_tick :: proc () {
         core_advance_cpu_clocks(4)
     }
 
+    if instruction_counter == 10_000 && cpu_debug_instructions {
+        cpu_debug_instructions = false
+        debug_log_close()
+    }
+
     interrupt_service_routine()
 }
 
@@ -96,6 +102,10 @@ cpu_execute_halt_bug :: proc () {
 
 @(private="file")
 cpu_fetch :: proc () {
+    if cpu_debug_instructions {
+        cpu_dump_registers()
+    }
+
     current_op_code = memory_bus_read(cpu_registers.pc)
     cpu_registers.pc += 1
     core_advance_cpu_clocks(4)                   // complete M1: opcode fetch
@@ -139,10 +149,60 @@ cpu_reset :: proc () {
 }
 
 @(private="file")
+cpu_dump_registers :: proc () {
+    opcode := memory_bus_read(cpu_registers.pc)
+    instruction := CPU_INSTRUCTIONS[opcode]
+    pchi := (cpu_registers.pc & 0xFF00) >> 8
+    pclo := (cpu_registers.pc & 0x00FF)
+    sphi := (cpu_registers.sp & 0xFF00) >> 8
+    splo := (cpu_registers.sp & 0x00FF)
+
+    if instruction.operand_length == 0 {
+        debug_log(
+            "AF: {:02X}{:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:02X}{:02X} PC: {:02X}{:02X} {}",
+            cpu_registers.a, cpu_registers.f,
+            cpu_registers.b, cpu_registers.c,
+            cpu_registers.d, cpu_registers.e,
+            cpu_registers.h, cpu_registers.l,
+            sphi, splo,
+            pchi, pclo,
+            instruction.disassembly,
+        )
+    } else if instruction.operand_length == 1 {
+        operand := memory_bus_read(cpu_registers.pc + 1)
+        debug_log(
+            "AF: {:02X}{:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:02X}{:02X} PC: {:02X}{:02X} {} ({:02X})",
+            cpu_registers.a, cpu_registers.f,
+            cpu_registers.b, cpu_registers.c,
+            cpu_registers.d, cpu_registers.e,
+            cpu_registers.h, cpu_registers.l,
+            sphi, splo,
+            pchi, pclo,
+            instruction.disassembly,
+            operand,
+        )
+    } else if instruction.operand_length == 2 {
+        oplo := memory_bus_read(cpu_registers.pc + 1)
+        ophi := memory_bus_read(cpu_registers.pc + 2)
+        debug_log(
+            "AF: {:02X}{:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:02X}{:02X} PC: {:02X}{:02X} {} ({:02X}{:02X})",
+            cpu_registers.a, cpu_registers.f,
+            cpu_registers.b, cpu_registers.c,
+            cpu_registers.d, cpu_registers.e,
+            cpu_registers.h, cpu_registers.l,
+            sphi, splo,
+            pchi, pclo,
+            instruction.disassembly,
+            ophi, oplo,
+        )
+    }
+}
+
+@(private="file")
 current_op_code: u8
 
 @(private="file")
-instruction_counter: u8
+instruction_counter: i64
 
 @(private="file")
 current_instruction_proc: CpuInstructionProc
@@ -786,6 +846,7 @@ cpu_stop_wake_requested: bool
 cpu_stop :: proc () {
     cpu_registers.pc += 1
     timer_on_div_write(0)
+
     cpu_stop_wake_requested = false
     cpu_run_state = .Stopped
 }
@@ -794,6 +855,503 @@ cpu_stop_on_joypad_falling_edge :: proc () {
     if cpu_run_state == .Stopped {
         cpu_stop_wake_requested = true
     }
+}
+
+cpu_prefix_cb :: proc () {
+    addr := cpu_registers.pc
+    opcode := memory_bus_read(addr)
+    cpu_registers.pc += 1
+    core_advance_cpu_clocks(4)
+
+    instruction := CPU_CB_INSTRUCTIONS[opcode]
+    if instruction.procedure == nil {
+        log.errorf("Unimplemented CB opcode: {:02X}, second byte at: {:04X}", opcode, addr)
+    } else {
+        instruction.procedure()
+    }
+}
+
+cpu_rlc_b :: proc () { cpu_rlc_r8(&cpu_registers.b) }
+cpu_rlc_c :: proc () { cpu_rlc_r8(&cpu_registers.c) }
+cpu_rlc_d :: proc () { cpu_rlc_r8(&cpu_registers.d) }
+cpu_rlc_e :: proc () { cpu_rlc_r8(&cpu_registers.e) }
+cpu_rlc_h :: proc () { cpu_rlc_r8(&cpu_registers.h) }
+cpu_rlc_l :: proc () { cpu_rlc_r8(&cpu_registers.l) }
+cpu_rlc_a :: proc () { cpu_rlc_r8(&cpu_registers.a) }
+
+cpu_rlc_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_rlc_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_rlc_r8 :: #force_inline proc (reg8: ^u8) {
+    b7 := reg8^ >> 7
+    reg8^ <<= 1
+    reg8^ |= b7
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b7)
+}
+
+cpu_rrc_b :: proc () { cpu_rrc_r8(&cpu_registers.b) }
+cpu_rrc_c :: proc () { cpu_rrc_r8(&cpu_registers.c) }
+cpu_rrc_d :: proc () { cpu_rrc_r8(&cpu_registers.d) }
+cpu_rrc_e :: proc () { cpu_rrc_r8(&cpu_registers.e) }
+cpu_rrc_h :: proc () { cpu_rrc_r8(&cpu_registers.h) }
+cpu_rrc_l :: proc () { cpu_rrc_r8(&cpu_registers.l) }
+cpu_rrc_a :: proc () { cpu_rrc_r8(&cpu_registers.a) }
+
+cpu_rrc_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_rrc_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_rrc_r8 :: #force_inline proc (reg8: ^u8) {
+    b0 := reg8^ & 0x1
+    reg8^ >>= 1
+    reg8^ |= b0 << 7
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b0)
+}
+
+cpu_rl_b :: proc () { cpu_rl_r8(&cpu_registers.b) }
+cpu_rl_c :: proc () { cpu_rl_r8(&cpu_registers.c) }
+cpu_rl_d :: proc () { cpu_rl_r8(&cpu_registers.d) }
+cpu_rl_e :: proc () { cpu_rl_r8(&cpu_registers.e) }
+cpu_rl_h :: proc () { cpu_rl_r8(&cpu_registers.h) }
+cpu_rl_l :: proc () { cpu_rl_r8(&cpu_registers.l) }
+cpu_rl_a :: proc () { cpu_rl_r8(&cpu_registers.a) }
+
+cpu_rl_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_rl_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_rl_r8 :: #force_inline proc (reg8: ^u8) {
+    b7 := reg8^ >> 7
+    reg8^ <<= 1
+    reg8^ |= 1 if get_flag(.C) else 0
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b7)
+}
+
+cpu_rr_b :: proc () { cpu_rr_r8(&cpu_registers.b) }
+cpu_rr_c :: proc () { cpu_rr_r8(&cpu_registers.c) }
+cpu_rr_d :: proc () { cpu_rr_r8(&cpu_registers.d) }
+cpu_rr_e :: proc () { cpu_rr_r8(&cpu_registers.e) }
+cpu_rr_h :: proc () { cpu_rr_r8(&cpu_registers.h) }
+cpu_rr_l :: proc () { cpu_rr_r8(&cpu_registers.l) }
+cpu_rr_a :: proc () { cpu_rr_r8(&cpu_registers.a) }
+
+cpu_rr_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_rr_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_rr_r8 :: #force_inline proc (reg8: ^u8) {
+    b0 := reg8^ & 0x1
+    reg8^ >>= 1
+    reg8^ |= (1 << 7) if get_flag(.C) else 0
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b0)
+}
+
+cpu_sla_b :: proc () { cpu_sla_r8(&cpu_registers.b) }
+cpu_sla_c :: proc () { cpu_sla_r8(&cpu_registers.c) }
+cpu_sla_d :: proc () { cpu_sla_r8(&cpu_registers.d) }
+cpu_sla_e :: proc () { cpu_sla_r8(&cpu_registers.e) }
+cpu_sla_h :: proc () { cpu_sla_r8(&cpu_registers.h) }
+cpu_sla_l :: proc () { cpu_sla_r8(&cpu_registers.l) }
+cpu_sla_a :: proc () { cpu_sla_r8(&cpu_registers.a) }
+
+cpu_sla_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_sla_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_sla_r8 :: #force_inline proc (reg8: ^u8) {
+    b7 := reg8^ >> 7
+    reg8^ <<= 1
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b7)
+}
+
+cpu_sra_b :: proc () { cpu_sra_r8(&cpu_registers.b) }
+cpu_sra_c :: proc () { cpu_sra_r8(&cpu_registers.c) }
+cpu_sra_d :: proc () { cpu_sra_r8(&cpu_registers.d) }
+cpu_sra_e :: proc () { cpu_sra_r8(&cpu_registers.e) }
+cpu_sra_h :: proc () { cpu_sra_r8(&cpu_registers.h) }
+cpu_sra_l :: proc () { cpu_sra_r8(&cpu_registers.l) }
+cpu_sra_a :: proc () { cpu_sra_r8(&cpu_registers.a) }
+
+cpu_sra_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_sra_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_sra_r8 :: #force_inline proc (reg8: ^u8) {
+    b0 := reg8^ & 0x1
+    b7 := reg8^ & (1 << 7)
+    reg8^ >>= 1
+    reg8^ |= b7
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b0)
+}
+
+cpu_swap_b :: proc () { cpu_swap_r8(&cpu_registers.b) }
+cpu_swap_c :: proc () { cpu_swap_r8(&cpu_registers.c) }
+cpu_swap_d :: proc () { cpu_swap_r8(&cpu_registers.d) }
+cpu_swap_e :: proc () { cpu_swap_r8(&cpu_registers.e) }
+cpu_swap_h :: proc () { cpu_swap_r8(&cpu_registers.h) }
+cpu_swap_l :: proc () { cpu_swap_r8(&cpu_registers.l) }
+cpu_swap_a :: proc () { cpu_swap_r8(&cpu_registers.a) }
+
+cpu_swap_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_swap_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_swap_r8 :: #force_inline proc (reg8: ^u8) {
+    lo := reg8^ & 0x0F
+    hi := reg8^ >> 4
+    reg8^ = (lo << 4) | hi
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, 0)
+}
+
+cpu_srl_b :: proc () { cpu_srl_r8(&cpu_registers.b) }
+cpu_srl_c :: proc () { cpu_srl_r8(&cpu_registers.c) }
+cpu_srl_d :: proc () { cpu_srl_r8(&cpu_registers.d) }
+cpu_srl_e :: proc () { cpu_srl_r8(&cpu_registers.e) }
+cpu_srl_h :: proc () { cpu_srl_r8(&cpu_registers.h) }
+cpu_srl_l :: proc () { cpu_srl_r8(&cpu_registers.l) }
+cpu_srl_a :: proc () { cpu_srl_r8(&cpu_registers.a) }
+
+cpu_srl_ptr_hl :: proc () {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_srl_r8(&z)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_srl_r8 :: #force_inline proc (reg8: ^u8) {
+    b0 := reg8^ & 0x1
+    reg8^ >>= 1
+    set_flag(.Z, reg8^ == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 0)
+    set_flag(.C, b0)
+}
+
+cpu_bit_0_b      :: proc () { cpu_bit_r8(cpu_registers.b, 0) }
+cpu_bit_0_c      :: proc () { cpu_bit_r8(cpu_registers.c, 0) }
+cpu_bit_0_d      :: proc () { cpu_bit_r8(cpu_registers.d, 0) }
+cpu_bit_0_e      :: proc () { cpu_bit_r8(cpu_registers.e, 0) }
+cpu_bit_0_h      :: proc () { cpu_bit_r8(cpu_registers.h, 0) }
+cpu_bit_0_l      :: proc () { cpu_bit_r8(cpu_registers.l, 0) }
+cpu_bit_0_ptr_hl :: proc () { cpu_bit_ptr_hl(0) }
+cpu_bit_0_a      :: proc () { cpu_bit_r8(cpu_registers.a, 0) }
+
+cpu_bit_1_b      :: proc () { cpu_bit_r8(cpu_registers.b, 1) }
+cpu_bit_1_c      :: proc () { cpu_bit_r8(cpu_registers.c, 1) }
+cpu_bit_1_d      :: proc () { cpu_bit_r8(cpu_registers.d, 1) }
+cpu_bit_1_e      :: proc () { cpu_bit_r8(cpu_registers.e, 1) }
+cpu_bit_1_h      :: proc () { cpu_bit_r8(cpu_registers.h, 1) }
+cpu_bit_1_l      :: proc () { cpu_bit_r8(cpu_registers.l, 1) }
+cpu_bit_1_ptr_hl :: proc () { cpu_bit_ptr_hl(1) }
+cpu_bit_1_a      :: proc () { cpu_bit_r8(cpu_registers.a, 1) }
+
+cpu_bit_2_b      :: proc () { cpu_bit_r8(cpu_registers.b, 2) }
+cpu_bit_2_c      :: proc () { cpu_bit_r8(cpu_registers.c, 2) }
+cpu_bit_2_d      :: proc () { cpu_bit_r8(cpu_registers.d, 2) }
+cpu_bit_2_e      :: proc () { cpu_bit_r8(cpu_registers.e, 2) }
+cpu_bit_2_h      :: proc () { cpu_bit_r8(cpu_registers.h, 2) }
+cpu_bit_2_l      :: proc () { cpu_bit_r8(cpu_registers.l, 2) }
+cpu_bit_2_ptr_hl :: proc () { cpu_bit_ptr_hl(2) }
+cpu_bit_2_a      :: proc () { cpu_bit_r8(cpu_registers.a, 2) }
+
+cpu_bit_3_b      :: proc () { cpu_bit_r8(cpu_registers.b, 3) }
+cpu_bit_3_c      :: proc () { cpu_bit_r8(cpu_registers.c, 3) }
+cpu_bit_3_d      :: proc () { cpu_bit_r8(cpu_registers.d, 3) }
+cpu_bit_3_e      :: proc () { cpu_bit_r8(cpu_registers.e, 3) }
+cpu_bit_3_h      :: proc () { cpu_bit_r8(cpu_registers.h, 3) }
+cpu_bit_3_l      :: proc () { cpu_bit_r8(cpu_registers.l, 3) }
+cpu_bit_3_ptr_hl :: proc () { cpu_bit_ptr_hl(3) }
+cpu_bit_3_a      :: proc () { cpu_bit_r8(cpu_registers.a, 3) }
+
+cpu_bit_4_b      :: proc () { cpu_bit_r8(cpu_registers.b, 4) }
+cpu_bit_4_c      :: proc () { cpu_bit_r8(cpu_registers.c, 4) }
+cpu_bit_4_d      :: proc () { cpu_bit_r8(cpu_registers.d, 4) }
+cpu_bit_4_e      :: proc () { cpu_bit_r8(cpu_registers.e, 4) }
+cpu_bit_4_h      :: proc () { cpu_bit_r8(cpu_registers.h, 4) }
+cpu_bit_4_l      :: proc () { cpu_bit_r8(cpu_registers.l, 4) }
+cpu_bit_4_ptr_hl :: proc () { cpu_bit_ptr_hl(4) }
+cpu_bit_4_a      :: proc () { cpu_bit_r8(cpu_registers.a, 4) }
+
+cpu_bit_5_b      :: proc () { cpu_bit_r8(cpu_registers.b, 5) }
+cpu_bit_5_c      :: proc () { cpu_bit_r8(cpu_registers.c, 5) }
+cpu_bit_5_d      :: proc () { cpu_bit_r8(cpu_registers.d, 5) }
+cpu_bit_5_e      :: proc () { cpu_bit_r8(cpu_registers.e, 5) }
+cpu_bit_5_h      :: proc () { cpu_bit_r8(cpu_registers.h, 5) }
+cpu_bit_5_l      :: proc () { cpu_bit_r8(cpu_registers.l, 5) }
+cpu_bit_5_ptr_hl :: proc () { cpu_bit_ptr_hl(5) }
+cpu_bit_5_a      :: proc () { cpu_bit_r8(cpu_registers.a, 5) }
+
+cpu_bit_6_b      :: proc () { cpu_bit_r8(cpu_registers.b, 6) }
+cpu_bit_6_c      :: proc () { cpu_bit_r8(cpu_registers.c, 6) }
+cpu_bit_6_d      :: proc () { cpu_bit_r8(cpu_registers.d, 6) }
+cpu_bit_6_e      :: proc () { cpu_bit_r8(cpu_registers.e, 6) }
+cpu_bit_6_h      :: proc () { cpu_bit_r8(cpu_registers.h, 6) }
+cpu_bit_6_l      :: proc () { cpu_bit_r8(cpu_registers.l, 6) }
+cpu_bit_6_ptr_hl :: proc () { cpu_bit_ptr_hl(6) }
+cpu_bit_6_a      :: proc () { cpu_bit_r8(cpu_registers.a, 6) }
+
+cpu_bit_7_b      :: proc () { cpu_bit_r8(cpu_registers.b, 7) }
+cpu_bit_7_c      :: proc () { cpu_bit_r8(cpu_registers.c, 7) }
+cpu_bit_7_d      :: proc () { cpu_bit_r8(cpu_registers.d, 7) }
+cpu_bit_7_e      :: proc () { cpu_bit_r8(cpu_registers.e, 7) }
+cpu_bit_7_h      :: proc () { cpu_bit_r8(cpu_registers.h, 7) }
+cpu_bit_7_l      :: proc () { cpu_bit_r8(cpu_registers.l, 7) }
+cpu_bit_7_ptr_hl :: proc () { cpu_bit_ptr_hl(7) }
+cpu_bit_7_a      :: proc () { cpu_bit_r8(cpu_registers.a, 7) }
+
+cpu_bit_ptr_hl :: proc (bit: u8) {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_bit_r8(z, bit)
+}
+
+@(private="file")
+cpu_bit_r8 :: #force_inline proc (reg8: u8, bit: u8) {
+    set_flag(.Z, (reg8 & (1 << bit)) == 0)
+    set_flag(.N, 0)
+    set_flag(.H, 1)
+}
+
+cpu_res_0_b      :: proc () { cpu_res_r8(&cpu_registers.b, 0) }
+cpu_res_0_c      :: proc () { cpu_res_r8(&cpu_registers.c, 0) }
+cpu_res_0_d      :: proc () { cpu_res_r8(&cpu_registers.d, 0) }
+cpu_res_0_e      :: proc () { cpu_res_r8(&cpu_registers.e, 0) }
+cpu_res_0_h      :: proc () { cpu_res_r8(&cpu_registers.h, 0) }
+cpu_res_0_l      :: proc () { cpu_res_r8(&cpu_registers.l, 0) }
+cpu_res_0_ptr_hl :: proc () { cpu_res_ptr_hl(0) }
+cpu_res_0_a      :: proc () { cpu_res_r8(&cpu_registers.a, 0) }
+
+cpu_res_1_b      :: proc () { cpu_res_r8(&cpu_registers.b, 1) }
+cpu_res_1_c      :: proc () { cpu_res_r8(&cpu_registers.c, 1) }
+cpu_res_1_d      :: proc () { cpu_res_r8(&cpu_registers.d, 1) }
+cpu_res_1_e      :: proc () { cpu_res_r8(&cpu_registers.e, 1) }
+cpu_res_1_h      :: proc () { cpu_res_r8(&cpu_registers.h, 1) }
+cpu_res_1_l      :: proc () { cpu_res_r8(&cpu_registers.l, 1) }
+cpu_res_1_ptr_hl :: proc () { cpu_res_ptr_hl(1) }
+cpu_res_1_a      :: proc () { cpu_res_r8(&cpu_registers.a, 1) }
+
+cpu_res_2_b      :: proc () { cpu_res_r8(&cpu_registers.b, 2) }
+cpu_res_2_c      :: proc () { cpu_res_r8(&cpu_registers.c, 2) }
+cpu_res_2_d      :: proc () { cpu_res_r8(&cpu_registers.d, 2) }
+cpu_res_2_e      :: proc () { cpu_res_r8(&cpu_registers.e, 2) }
+cpu_res_2_h      :: proc () { cpu_res_r8(&cpu_registers.h, 2) }
+cpu_res_2_l      :: proc () { cpu_res_r8(&cpu_registers.l, 2) }
+cpu_res_2_ptr_hl :: proc () { cpu_res_ptr_hl(2) }
+cpu_res_2_a      :: proc () { cpu_res_r8(&cpu_registers.a, 2) }
+
+cpu_res_3_b      :: proc () { cpu_res_r8(&cpu_registers.b, 3) }
+cpu_res_3_c      :: proc () { cpu_res_r8(&cpu_registers.c, 3) }
+cpu_res_3_d      :: proc () { cpu_res_r8(&cpu_registers.d, 3) }
+cpu_res_3_e      :: proc () { cpu_res_r8(&cpu_registers.e, 3) }
+cpu_res_3_h      :: proc () { cpu_res_r8(&cpu_registers.h, 3) }
+cpu_res_3_l      :: proc () { cpu_res_r8(&cpu_registers.l, 3) }
+cpu_res_3_ptr_hl :: proc () { cpu_res_ptr_hl(3) }
+cpu_res_3_a      :: proc () { cpu_res_r8(&cpu_registers.a, 3) }
+
+cpu_res_4_b      :: proc () { cpu_res_r8(&cpu_registers.b, 4) }
+cpu_res_4_c      :: proc () { cpu_res_r8(&cpu_registers.c, 4) }
+cpu_res_4_d      :: proc () { cpu_res_r8(&cpu_registers.d, 4) }
+cpu_res_4_e      :: proc () { cpu_res_r8(&cpu_registers.e, 4) }
+cpu_res_4_h      :: proc () { cpu_res_r8(&cpu_registers.h, 4) }
+cpu_res_4_l      :: proc () { cpu_res_r8(&cpu_registers.l, 4) }
+cpu_res_4_ptr_hl :: proc () { cpu_res_ptr_hl(4) }
+cpu_res_4_a      :: proc () { cpu_res_r8(&cpu_registers.a, 4) }
+
+cpu_res_5_b      :: proc () { cpu_res_r8(&cpu_registers.b, 5) }
+cpu_res_5_c      :: proc () { cpu_res_r8(&cpu_registers.c, 5) }
+cpu_res_5_d      :: proc () { cpu_res_r8(&cpu_registers.d, 5) }
+cpu_res_5_e      :: proc () { cpu_res_r8(&cpu_registers.e, 5) }
+cpu_res_5_h      :: proc () { cpu_res_r8(&cpu_registers.h, 5) }
+cpu_res_5_l      :: proc () { cpu_res_r8(&cpu_registers.l, 5) }
+cpu_res_5_ptr_hl :: proc () { cpu_res_ptr_hl(5) }
+cpu_res_5_a      :: proc () { cpu_res_r8(&cpu_registers.a, 5) }
+
+cpu_res_6_b      :: proc () { cpu_res_r8(&cpu_registers.b, 6) }
+cpu_res_6_c      :: proc () { cpu_res_r8(&cpu_registers.c, 6) }
+cpu_res_6_d      :: proc () { cpu_res_r8(&cpu_registers.d, 6) }
+cpu_res_6_e      :: proc () { cpu_res_r8(&cpu_registers.e, 6) }
+cpu_res_6_h      :: proc () { cpu_res_r8(&cpu_registers.h, 6) }
+cpu_res_6_l      :: proc () { cpu_res_r8(&cpu_registers.l, 6) }
+cpu_res_6_ptr_hl :: proc () { cpu_res_ptr_hl(6) }
+cpu_res_6_a      :: proc () { cpu_res_r8(&cpu_registers.a, 6) }
+
+cpu_res_7_b      :: proc () { cpu_res_r8(&cpu_registers.b, 7) }
+cpu_res_7_c      :: proc () { cpu_res_r8(&cpu_registers.c, 7) }
+cpu_res_7_d      :: proc () { cpu_res_r8(&cpu_registers.d, 7) }
+cpu_res_7_e      :: proc () { cpu_res_r8(&cpu_registers.e, 7) }
+cpu_res_7_h      :: proc () { cpu_res_r8(&cpu_registers.h, 7) }
+cpu_res_7_l      :: proc () { cpu_res_r8(&cpu_registers.l, 7) }
+cpu_res_7_ptr_hl :: proc () { cpu_res_ptr_hl(7) }
+cpu_res_7_a      :: proc () { cpu_res_r8(&cpu_registers.a, 7) }
+
+cpu_res_ptr_hl :: proc (bit: u8) {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_res_r8(&z, bit)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_res_r8 :: #force_inline proc (reg8: ^u8, bit: u8) {
+    mask := u8(1 << bit)
+    reg8^ &= ~mask
+}
+
+cpu_set_0_b      :: proc () { cpu_set_r8(&cpu_registers.b, 0) }
+cpu_set_0_c      :: proc () { cpu_set_r8(&cpu_registers.c, 0) }
+cpu_set_0_d      :: proc () { cpu_set_r8(&cpu_registers.d, 0) }
+cpu_set_0_e      :: proc () { cpu_set_r8(&cpu_registers.e, 0) }
+cpu_set_0_h      :: proc () { cpu_set_r8(&cpu_registers.h, 0) }
+cpu_set_0_l      :: proc () { cpu_set_r8(&cpu_registers.l, 0) }
+cpu_set_0_ptr_hl :: proc () { cpu_set_ptr_hl(0) }
+cpu_set_0_a      :: proc () { cpu_set_r8(&cpu_registers.a, 0) }
+
+cpu_set_1_b      :: proc () { cpu_set_r8(&cpu_registers.b, 1) }
+cpu_set_1_c      :: proc () { cpu_set_r8(&cpu_registers.c, 1) }
+cpu_set_1_d      :: proc () { cpu_set_r8(&cpu_registers.d, 1) }
+cpu_set_1_e      :: proc () { cpu_set_r8(&cpu_registers.e, 1) }
+cpu_set_1_h      :: proc () { cpu_set_r8(&cpu_registers.h, 1) }
+cpu_set_1_l      :: proc () { cpu_set_r8(&cpu_registers.l, 1) }
+cpu_set_1_ptr_hl :: proc () { cpu_set_ptr_hl(1) }
+cpu_set_1_a      :: proc () { cpu_set_r8(&cpu_registers.a, 1) }
+
+cpu_set_2_b      :: proc () { cpu_set_r8(&cpu_registers.b, 2) }
+cpu_set_2_c      :: proc () { cpu_set_r8(&cpu_registers.c, 2) }
+cpu_set_2_d      :: proc () { cpu_set_r8(&cpu_registers.d, 2) }
+cpu_set_2_e      :: proc () { cpu_set_r8(&cpu_registers.e, 2) }
+cpu_set_2_h      :: proc () { cpu_set_r8(&cpu_registers.h, 2) }
+cpu_set_2_l      :: proc () { cpu_set_r8(&cpu_registers.l, 2) }
+cpu_set_2_ptr_hl :: proc () { cpu_set_ptr_hl(2) }
+cpu_set_2_a      :: proc () { cpu_set_r8(&cpu_registers.a, 2) }
+
+cpu_set_3_b      :: proc () { cpu_set_r8(&cpu_registers.b, 3) }
+cpu_set_3_c      :: proc () { cpu_set_r8(&cpu_registers.c, 3) }
+cpu_set_3_d      :: proc () { cpu_set_r8(&cpu_registers.d, 3) }
+cpu_set_3_e      :: proc () { cpu_set_r8(&cpu_registers.e, 3) }
+cpu_set_3_h      :: proc () { cpu_set_r8(&cpu_registers.h, 3) }
+cpu_set_3_l      :: proc () { cpu_set_r8(&cpu_registers.l, 3) }
+cpu_set_3_ptr_hl :: proc () { cpu_set_ptr_hl(3) }
+cpu_set_3_a      :: proc () { cpu_set_r8(&cpu_registers.a, 3) }
+
+cpu_set_4_b      :: proc () { cpu_set_r8(&cpu_registers.b, 4) }
+cpu_set_4_c      :: proc () { cpu_set_r8(&cpu_registers.c, 4) }
+cpu_set_4_d      :: proc () { cpu_set_r8(&cpu_registers.d, 4) }
+cpu_set_4_e      :: proc () { cpu_set_r8(&cpu_registers.e, 4) }
+cpu_set_4_h      :: proc () { cpu_set_r8(&cpu_registers.h, 4) }
+cpu_set_4_l      :: proc () { cpu_set_r8(&cpu_registers.l, 4) }
+cpu_set_4_ptr_hl :: proc () { cpu_set_ptr_hl(4) }
+cpu_set_4_a      :: proc () { cpu_set_r8(&cpu_registers.a, 4) }
+
+cpu_set_5_b      :: proc () { cpu_set_r8(&cpu_registers.b, 5) }
+cpu_set_5_c      :: proc () { cpu_set_r8(&cpu_registers.c, 5) }
+cpu_set_5_d      :: proc () { cpu_set_r8(&cpu_registers.d, 5) }
+cpu_set_5_e      :: proc () { cpu_set_r8(&cpu_registers.e, 5) }
+cpu_set_5_h      :: proc () { cpu_set_r8(&cpu_registers.h, 5) }
+cpu_set_5_l      :: proc () { cpu_set_r8(&cpu_registers.l, 5) }
+cpu_set_5_ptr_hl :: proc () { cpu_set_ptr_hl(5) }
+cpu_set_5_a      :: proc () { cpu_set_r8(&cpu_registers.a, 5) }
+
+cpu_set_6_b      :: proc () { cpu_set_r8(&cpu_registers.b, 6) }
+cpu_set_6_c      :: proc () { cpu_set_r8(&cpu_registers.c, 6) }
+cpu_set_6_d      :: proc () { cpu_set_r8(&cpu_registers.d, 6) }
+cpu_set_6_e      :: proc () { cpu_set_r8(&cpu_registers.e, 6) }
+cpu_set_6_h      :: proc () { cpu_set_r8(&cpu_registers.h, 6) }
+cpu_set_6_l      :: proc () { cpu_set_r8(&cpu_registers.l, 6) }
+cpu_set_6_ptr_hl :: proc () { cpu_set_ptr_hl(6) }
+cpu_set_6_a      :: proc () { cpu_set_r8(&cpu_registers.a, 6) }
+
+cpu_set_7_b      :: proc () { cpu_set_r8(&cpu_registers.b, 7) }
+cpu_set_7_c      :: proc () { cpu_set_r8(&cpu_registers.c, 7) }
+cpu_set_7_d      :: proc () { cpu_set_r8(&cpu_registers.d, 7) }
+cpu_set_7_e      :: proc () { cpu_set_r8(&cpu_registers.e, 7) }
+cpu_set_7_h      :: proc () { cpu_set_r8(&cpu_registers.h, 7) }
+cpu_set_7_l      :: proc () { cpu_set_r8(&cpu_registers.l, 7) }
+cpu_set_7_ptr_hl :: proc () { cpu_set_ptr_hl(7) }
+cpu_set_7_a      :: proc () { cpu_set_r8(&cpu_registers.a, 7) }
+
+cpu_set_ptr_hl :: proc (bit: u8) {
+    z := memory_bus_read(cpu_registers.hl)
+    core_advance_cpu_clocks(4)
+
+    cpu_set_r8(&z, bit)
+    memory_bus_write(cpu_registers.hl, z)
+    core_advance_cpu_clocks(4)
+}
+
+@(private="file")
+cpu_set_r8 :: #force_inline proc (reg8: ^u8, bit: u8) {
+    mask := u8(1 << bit)
+    reg8^ |= mask
 }
 
 @(private="file")

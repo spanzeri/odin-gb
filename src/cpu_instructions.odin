@@ -212,7 +212,7 @@ CPU_INSTRUCTIONS := [256]CpuInstructionInfo{
     { "RET Z",          0,  cpu_ret_z       }, // 0xC8
     { "RET",            0,  cpu_ret         }, // 0xC9
     { "JP Z,a16",       2,  cpu_jp_z        }, // 0xCA
-    { "PREFIX",         0,  nil             }, // 0xCB
+    { "PREFIX",         1,  cpu_prefix_cb   }, // 0xCB
     { "CALL Z,a16",     2,  cpu_call_z      }, // 0xCC
     { "CALL a16",       2,  cpu_call        }, // 0xCD
     { "ADC A,n8",       1,  cpu_adc_n8      }, // 0xCE
@@ -267,262 +267,267 @@ CPU_INSTRUCTIONS := [256]CpuInstructionInfo{
     { "RST $38",        0,  cpu_rst_38      }, // 0xFF
 }
 
-CPU_CB_INSTRUCTIONS :[256]CpuInstructionInfo: {
-    { "", 0, nil }, // 0x00
-    { "", 0, nil }, // 0x01
-    { "", 0, nil }, // 0x02
-    { "", 0, nil }, // 0x03
-    { "", 0, nil }, // 0x04
-    { "", 0, nil }, // 0x05
-    { "", 0, nil }, // 0x06
-    { "", 0, nil }, // 0x07
-    { "", 0, nil }, // 0x08
-    { "", 0, nil }, // 0x09
-    { "", 0, nil }, // 0x0A
-    { "", 0, nil }, // 0x0B
-    { "", 0, nil }, // 0x0C
-    { "", 0, nil }, // 0x0D
-    { "", 0, nil }, // 0x0E
-    { "", 0, nil }, // 0x0F
-    { "", 0, nil }, // 0x10
-    { "", 0, nil }, // 0x11
-    { "", 0, nil }, // 0x12
-    { "", 0, nil }, // 0x13
-    { "", 0, nil }, // 0x14
-    { "", 0, nil }, // 0x15
-    { "", 0, nil }, // 0x16
-    { "", 0, nil }, // 0x17
-    { "", 0, nil }, // 0x18
-    { "", 0, nil }, // 0x19
-    { "", 0, nil }, // 0x1A
-    { "", 0, nil }, // 0x1B
-    { "", 0, nil }, // 0x1C
-    { "", 0, nil }, // 0x1D
-    { "", 0, nil }, // 0x1E
-    { "", 0, nil }, // 0x1F
-    { "", 0, nil }, // 0x20
-    { "", 0, nil }, // 0x21
-    { "", 0, nil }, // 0x22
-    { "", 0, nil }, // 0x23
-    { "", 0, nil }, // 0x24
-    { "", 0, nil }, // 0x25
-    { "", 0, nil }, // 0x26
-    { "", 0, nil }, // 0x27
-    { "", 0, nil }, // 0x28
-    { "", 0, nil }, // 0x29
-    { "", 0, nil }, // 0x2A
-    { "", 0, nil }, // 0x2B
-    { "", 0, nil }, // 0x2C
-    { "", 0, nil }, // 0x2D
-    { "", 0, nil }, // 0x2E
-    { "", 0, nil }, // 0x2F
-    { "", 0, nil }, // 0x30
-    { "", 0, nil }, // 0x31
-    { "", 0, nil }, // 0x32
-    { "", 0, nil }, // 0x33
-    { "", 0, nil }, // 0x34
-    { "", 0, nil }, // 0x35
-    { "", 0, nil }, // 0x36
-    { "", 0, nil }, // 0x37
-    { "", 0, nil }, // 0x38
-    { "", 0, nil }, // 0x39
-    { "", 0, nil }, // 0x3A
-    { "", 0, nil }, // 0x3B
-    { "", 0, nil }, // 0x3C
-    { "", 0, nil }, // 0x3D
-    { "", 0, nil }, // 0x3E
-    { "", 0, nil }, // 0x3F
-    { "", 0, nil }, // 0x40
-    { "", 0, nil }, // 0x41
-    { "", 0, nil }, // 0x42
-    { "", 0, nil }, // 0x43
-    { "", 0, nil }, // 0x44
-    { "", 0, nil }, // 0x45
-    { "", 0, nil }, // 0x46
-    { "", 0, nil }, // 0x47
-    { "", 0, nil }, // 0x48
-    { "", 0, nil }, // 0x49
-    { "", 0, nil }, // 0x4A
-    { "", 0, nil }, // 0x4B
-    { "", 0, nil }, // 0x4C
-    { "", 0, nil }, // 0x4D
-    { "", 0, nil }, // 0x4E
-    { "", 0, nil }, // 0x4F
-    { "", 0, nil }, // 0x50
-    { "", 0, nil }, // 0x51
-    { "", 0, nil }, // 0x52
-    { "", 0, nil }, // 0x53
-    { "", 0, nil }, // 0x54
-    { "", 0, nil }, // 0x55
-    { "", 0, nil }, // 0x56
-    { "", 0, nil }, // 0x57
-    { "", 0, nil }, // 0x58
-    { "", 0, nil }, // 0x59
-    { "", 0, nil }, // 0x5A
-    { "", 0, nil }, // 0x5B
-    { "", 0, nil }, // 0x5C
-    { "", 0, nil }, // 0x5D
-    { "", 0, nil }, // 0x5E
-    { "", 0, nil }, // 0x5F
-    { "", 0, nil }, // 0x60
-    { "", 0, nil }, // 0x61
-    { "", 0, nil }, // 0x62
-    { "", 0, nil }, // 0x63
-    { "", 0, nil }, // 0x64
-    { "", 0, nil }, // 0x65
-    { "", 0, nil }, // 0x66
-    { "", 0, nil }, // 0x67
-    { "", 0, nil }, // 0x68
-    { "", 0, nil }, // 0x69
-    { "", 0, nil }, // 0x6A
-    { "", 0, nil }, // 0x6B
-    { "", 0, nil }, // 0x6C
-    { "", 0, nil }, // 0x6D
-    { "", 0, nil }, // 0x6E
-    { "", 0, nil }, // 0x6F
-    { "", 0, nil }, // 0x70
-    { "", 0, nil }, // 0x71
-    { "", 0, nil }, // 0x72
-    { "", 0, nil }, // 0x73
-    { "", 0, nil }, // 0x74
-    { "", 0, nil }, // 0x75
-    { "", 0, nil }, // 0x76
-    { "", 0, nil }, // 0x77
-    { "", 0, nil }, // 0x78
-    { "", 0, nil }, // 0x79
-    { "", 0, nil }, // 0x7A
-    { "", 0, nil }, // 0x7B
-    { "", 0, nil }, // 0x7C
-    { "", 0, nil }, // 0x7D
-    { "", 0, nil }, // 0x7E
-    { "", 0, nil }, // 0x7F
-    { "", 0, nil }, // 0x80
-    { "", 0, nil }, // 0x81
-    { "", 0, nil }, // 0x82
-    { "", 0, nil }, // 0x83
-    { "", 0, nil }, // 0x84
-    { "", 0, nil }, // 0x85
-    { "", 0, nil }, // 0x86
-    { "", 0, nil }, // 0x87
-    { "", 0, nil }, // 0x88
-    { "", 0, nil }, // 0x89
-    { "", 0, nil }, // 0x8A
-    { "", 0, nil }, // 0x8B
-    { "", 0, nil }, // 0x8C
-    { "", 0, nil }, // 0x8D
-    { "", 0, nil }, // 0x8E
-    { "", 0, nil }, // 0x8F
-    { "", 0, nil }, // 0x90
-    { "", 0, nil }, // 0x91
-    { "", 0, nil }, // 0x92
-    { "", 0, nil }, // 0x93
-    { "", 0, nil }, // 0x94
-    { "", 0, nil }, // 0x95
-    { "", 0, nil }, // 0x96
-    { "", 0, nil }, // 0x97
-    { "", 0, nil }, // 0x98
-    { "", 0, nil }, // 0x99
-    { "", 0, nil }, // 0x9A
-    { "", 0, nil }, // 0x9B
-    { "", 0, nil }, // 0x9C
-    { "", 0, nil }, // 0x9D
-    { "", 0, nil }, // 0x9E
-    { "", 0, nil }, // 0x9F
-    { "", 0, nil }, // 0xA0
-    { "", 0, nil }, // 0xA1
-    { "", 0, nil }, // 0xA2
-    { "", 0, nil }, // 0xA3
-    { "", 0, nil }, // 0xA4
-    { "", 0, nil }, // 0xA5
-    { "", 0, nil }, // 0xA6
-    { "", 0, nil }, // 0xA7
-    { "", 0, nil }, // 0xA8
-    { "", 0, nil }, // 0xA9
-    { "", 0, nil }, // 0xAA
-    { "", 0, nil }, // 0xAB
-    { "", 0, nil }, // 0xAC
-    { "", 0, nil }, // 0xAD
-    { "", 0, nil }, // 0xAE
-    { "", 0, nil }, // 0xAF
-    { "", 0, nil }, // 0xB0
-    { "", 0, nil }, // 0xB1
-    { "", 0, nil }, // 0xB2
-    { "", 0, nil }, // 0xB3
-    { "", 0, nil }, // 0xB4
-    { "", 0, nil }, // 0xB5
-    { "", 0, nil }, // 0xB6
-    { "", 0, nil }, // 0xB7
-    { "", 0, nil }, // 0xB8
-    { "", 0, nil }, // 0xB9
-    { "", 0, nil }, // 0xBA
-    { "", 0, nil }, // 0xBB
-    { "", 0, nil }, // 0xBC
-    { "", 0, nil }, // 0xBD
-    { "", 0, nil }, // 0xBE
-    { "", 0, nil }, // 0xBF
-    { "", 0, nil }, // 0xC0
-    { "", 0, nil }, // 0xC1
-    { "", 0, nil }, // 0xC2
-    { "", 0, nil }, // 0xC3
-    { "", 0, nil }, // 0xC4
-    { "", 0, nil }, // 0xC5
-    { "", 0, nil }, // 0xC6
-    { "", 0, nil }, // 0xC7
-    { "", 0, nil }, // 0xC8
-    { "", 0, nil }, // 0xC9
-    { "", 0, nil }, // 0xCA
-    { "", 0, nil }, // 0xCB
-    { "", 0, nil }, // 0xCC
-    { "", 0, nil }, // 0xCD
-    { "", 0, nil }, // 0xCE
-    { "", 0, nil }, // 0xCF
-    { "", 0, nil }, // 0xD0
-    { "", 0, nil }, // 0xD1
-    { "", 0, nil }, // 0xD2
-    { "", 0, nil }, // 0xD3
-    { "", 0, nil }, // 0xD4
-    { "", 0, nil }, // 0xD5
-    { "", 0, nil }, // 0xD6
-    { "", 0, nil }, // 0xD7
-    { "", 0, nil }, // 0xD8
-    { "", 0, nil }, // 0xD9
-    { "", 0, nil }, // 0xDA
-    { "", 0, nil }, // 0xDB
-    { "", 0, nil }, // 0xDC
-    { "", 0, nil }, // 0xDD
-    { "", 0, nil }, // 0xDE
-    { "", 0, nil }, // 0xDF
-    { "", 0, nil }, // 0xE0
-    { "", 0, nil }, // 0xE1
-    { "", 0, nil }, // 0xE2
-    { "", 0, nil }, // 0xE3
-    { "", 0, nil }, // 0xE4
-    { "", 0, nil }, // 0xE5
-    { "", 0, nil }, // 0xE6
-    { "", 0, nil }, // 0xE7
-    { "", 0, nil }, // 0xE8
-    { "", 0, nil }, // 0xE9
-    { "", 0, nil }, // 0xEA
-    { "", 0, nil }, // 0xEB
-    { "", 0, nil }, // 0xEC
-    { "", 0, nil }, // 0xED
-    { "", 0, nil }, // 0xEE
-    { "", 0, nil }, // 0xEF
-    { "", 0, nil }, // 0xF0
-    { "", 0, nil }, // 0xF1
-    { "", 0, nil }, // 0xF2
-    { "", 0, nil }, // 0xF3
-    { "", 0, nil }, // 0xF4
-    { "", 0, nil }, // 0xF5
-    { "", 0, nil }, // 0xF6
-    { "", 0, nil }, // 0xF7
-    { "", 0, nil }, // 0xF8
-    { "", 0, nil }, // 0xF9
-    { "", 0, nil }, // 0xFA
-    { "", 0, nil }, // 0xFB
-    { "", 0, nil }, // 0xFC
-    { "", 0, nil }, // 0xFD
-    { "", 0, nil }, // 0xFE
-    { "", 0, nil }, // 0xFF
+CpuPrefixInstructionInfo :: struct {
+    disassembly:    string,
+    procedure:      CpuInstructionProc,
+}
+
+CPU_CB_INSTRUCTIONS := [256]CpuPrefixInstructionInfo{
+    { "RLC B",      cpu_rlc_b       }, // 0x00
+    { "RLC C",      cpu_rlc_c       }, // 0x01
+    { "RLC D",      cpu_rlc_d       }, // 0x02
+    { "RLC E",      cpu_rlc_e       }, // 0x03
+    { "RLC H",      cpu_rlc_h       }, // 0x04
+    { "RLC L",      cpu_rlc_l       }, // 0x05
+    { "RLC [HL]",   cpu_rlc_ptr_hl  }, // 0x06
+    { "RLC A",      cpu_rlc_a       }, // 0x07
+    { "RRC B",      cpu_rrc_b       }, // 0x08
+    { "RRC C",      cpu_rrc_c       }, // 0x09
+    { "RRC D",      cpu_rrc_d       }, // 0x0A
+    { "RRC E",      cpu_rrc_e       }, // 0x0B
+    { "RRC H",      cpu_rrc_h       }, // 0x0C
+    { "RRC L",      cpu_rrc_l       }, // 0x0D
+    { "RRC [HL]",   cpu_rrc_ptr_hl  }, // 0x0E
+    { "RRC A",      cpu_rrc_a       }, // 0x0F
+    { "RL B",       cpu_rl_b        }, // 0x10
+    { "RL C",       cpu_rl_c        }, // 0x11
+    { "RL D",       cpu_rl_d        }, // 0x12
+    { "RL E",       cpu_rl_e        }, // 0x13
+    { "RL H",       cpu_rl_h        }, // 0x14
+    { "RL L",       cpu_rl_l        }, // 0x15
+    { "RL [HL]",    cpu_rl_ptr_hl   }, // 0x16
+    { "RL A",       cpu_rl_a        }, // 0x17
+    { "RR B",       cpu_rr_b        }, // 0x18
+    { "RR C",       cpu_rr_c        }, // 0x19
+    { "RR D",       cpu_rr_d        }, // 0x1A
+    { "RR E",       cpu_rr_e        }, // 0x1B
+    { "RR H",       cpu_rr_h        }, // 0x1C
+    { "RR L",       cpu_rr_l        }, // 0x1D
+    { "RR [HL]",    cpu_rr_ptr_hl   }, // 0x1E
+    { "RR A",       cpu_rr_a        }, // 0x1F
+    { "SLA B",      cpu_sla_b       }, // 0x20
+    { "SLA C",      cpu_sla_c       }, // 0x21
+    { "SLA D",      cpu_sla_d       }, // 0x22
+    { "SLA E",      cpu_sla_e       }, // 0x23
+    { "SLA H",      cpu_sla_h       }, // 0x24
+    { "SLA L",      cpu_sla_l       }, // 0x25
+    { "SLA [HL]",   cpu_sla_ptr_hl  }, // 0x26
+    { "SLA A",      cpu_sla_a       }, // 0x27
+    { "SRA B",      cpu_sra_b       }, // 0x28
+    { "SRA C",      cpu_sra_c       }, // 0x29
+    { "SRA D",      cpu_sra_d       }, // 0x2A
+    { "SRA E",      cpu_sra_e       }, // 0x2B
+    { "SRA H",      cpu_sra_h       }, // 0x2C
+    { "SRA L",      cpu_sra_l       }, // 0x2D
+    { "SRA [HL]",   cpu_sra_ptr_hl  }, // 0x2E
+    { "SRA A",      cpu_sra_a       }, // 0x2F
+    { "SWAP B",     cpu_swap_b      }, // 0x30
+    { "SWAP C",     cpu_swap_c      }, // 0x31
+    { "SWAP D",     cpu_swap_d      }, // 0x32
+    { "SWAP E",     cpu_swap_e      }, // 0x33
+    { "SWAP H",     cpu_swap_h      }, // 0x34
+    { "SWAP L",     cpu_swap_l      }, // 0x35
+    { "SWAP [HL]",  cpu_swap_ptr_hl }, // 0x36
+    { "SWAP A",     cpu_swap_a      }, // 0x37
+    { "SRL B",      cpu_srl_b       }, // 0x38
+    { "SRL C",      cpu_srl_c       }, // 0x39
+    { "SRL D",      cpu_srl_d       }, // 0x3A
+    { "SRL E",      cpu_srl_e       }, // 0x3B
+    { "SRL H",      cpu_srl_h       }, // 0x3C
+    { "SRL L",      cpu_srl_l       }, // 0x3D
+    { "SRL [HL]",   cpu_srl_ptr_hl  }, // 0x3E
+    { "SRL A",      cpu_srl_a       }, // 0x3F
+    { "BIT 0 B",    cpu_bit_0_b     }, // 0x40
+    { "BIT 0 C",    cpu_bit_0_c     }, // 0x41
+    { "BIT 0 D",    cpu_bit_0_d     }, // 0x42
+    { "BIT 0 E",    cpu_bit_0_e     }, // 0x43
+    { "BIT 0 H",    cpu_bit_0_h     }, // 0x44
+    { "BIT 0 L",    cpu_bit_0_l     }, // 0x45
+    { "BIT 0 [HL]", cpu_bit_0_ptr_hl}, // 0x46
+    { "BIT 0 A",    cpu_bit_0_a     }, // 0x47
+    { "BIT 1 B",    cpu_bit_1_b     }, // 0x48
+    { "BIT 1 C",    cpu_bit_1_c     }, // 0x49
+    { "BIT 1 D",    cpu_bit_1_d     }, // 0x4A
+    { "BIT 1 E",    cpu_bit_1_e     }, // 0x4B
+    { "BIT 1 H",    cpu_bit_1_h     }, // 0x4C
+    { "BIT 1 L",    cpu_bit_1_l     }, // 0x4D
+    { "BIT 1 [HL]", cpu_bit_1_ptr_hl}, // 0x4E
+    { "BIT 1 A",    cpu_bit_1_a     }, // 0x4F
+    { "BIT 2 B",    cpu_bit_2_b     }, // 0x50
+    { "BIT 2 C",    cpu_bit_2_c     }, // 0x51
+    { "BIT 2 D",    cpu_bit_2_d     }, // 0x52
+    { "BIT 2 E",    cpu_bit_2_e     }, // 0x53
+    { "BIT 2 H",    cpu_bit_2_h     }, // 0x54
+    { "BIT 2 L",    cpu_bit_2_l     }, // 0x55
+    { "BIT 2 [HL]", cpu_bit_2_ptr_hl}, // 0x56
+    { "BIT 2 A",    cpu_bit_2_a     }, // 0x57
+    { "BIT 3 B",    cpu_bit_3_b     }, // 0x58
+    { "BIT 3 C",    cpu_bit_3_c     }, // 0x59
+    { "BIT 3 D",    cpu_bit_3_d     }, // 0x5A
+    { "BIT 3 E",    cpu_bit_3_e     }, // 0x5B
+    { "BIT 3 H",    cpu_bit_3_h     }, // 0x5C
+    { "BIT 3 L",    cpu_bit_3_l     }, // 0x5D
+    { "BIT 3 [HL]", cpu_bit_3_ptr_hl}, // 0x5E
+    { "BIT 3 A",    cpu_bit_3_a     }, // 0x5F
+    { "BIT 4 B",    cpu_bit_4_b     }, // 0x60
+    { "BIT 4 C",    cpu_bit_4_c     }, // 0x61
+    { "BIT 4 D",    cpu_bit_4_d     }, // 0x62
+    { "BIT 4 E",    cpu_bit_4_e     }, // 0x63
+    { "BIT 4 H",    cpu_bit_4_h     }, // 0x64
+    { "BIT 4 L",    cpu_bit_4_l     }, // 0x65
+    { "BIT 4 [HL]", cpu_bit_4_ptr_hl}, // 0x66
+    { "BIT 4 A",    cpu_bit_4_a     }, // 0x67
+    { "BIT 5 B",    cpu_bit_5_b     }, // 0x68
+    { "BIT 5 C",    cpu_bit_5_c     }, // 0x69
+    { "BIT 5 D",    cpu_bit_5_d     }, // 0x6A
+    { "BIT 5 E",    cpu_bit_5_e     }, // 0x6B
+    { "BIT 5 H",    cpu_bit_5_h     }, // 0x6C
+    { "BIT 5 L",    cpu_bit_5_l     }, // 0x6D
+    { "BIT 5 [HL]", cpu_bit_5_ptr_hl}, // 0x6E
+    { "BIT 5 A",    cpu_bit_5_a     }, // 0x6F
+    { "BIT 6 B",    cpu_bit_6_b     }, // 0x70
+    { "BIT 6 C",    cpu_bit_6_c     }, // 0x71
+    { "BIT 6 D",    cpu_bit_6_d     }, // 0x72
+    { "BIT 6 E",    cpu_bit_6_e     }, // 0x73
+    { "BIT 6 H",    cpu_bit_6_h     }, // 0x74
+    { "BIT 6 L",    cpu_bit_6_l     }, // 0x75
+    { "BIT 6 [HL]", cpu_bit_6_ptr_hl}, // 0x76
+    { "BIT 6 A",    cpu_bit_6_a     }, // 0x77
+    { "BIT 7 B",    cpu_bit_7_b     }, // 0x78
+    { "BIT 7 C",    cpu_bit_7_c     }, // 0x79
+    { "BIT 7 D",    cpu_bit_7_d     }, // 0x7A
+    { "BIT 7 E",    cpu_bit_7_e     }, // 0x7B
+    { "BIT 7 H",    cpu_bit_7_h     }, // 0x7C
+    { "BIT 7 L",    cpu_bit_7_l     }, // 0x7D
+    { "BIT 7 [HL]", cpu_bit_7_ptr_hl}, // 0x7E
+    { "BIT 7 A",    cpu_bit_7_a     }, // 0x7F
+    { "RES 0 B",    cpu_res_0_b     }, // 0x80
+    { "RES 0 C",    cpu_res_0_c     }, // 0x81
+    { "RES 0 D",    cpu_res_0_d     }, // 0x82
+    { "RES 0 E",    cpu_res_0_e     }, // 0x83
+    { "RES 0 H",    cpu_res_0_h     }, // 0x84
+    { "RES 0 L",    cpu_res_0_l     }, // 0x85
+    { "RES 0 [HL]", cpu_res_0_ptr_hl}, // 0x86
+    { "RES 0 A",    cpu_res_0_a     }, // 0x87
+    { "RES 1 B",    cpu_res_1_b     }, // 0x88
+    { "RES 1 C",    cpu_res_1_c     }, // 0x89
+    { "RES 1 D",    cpu_res_1_d     }, // 0x8A
+    { "RES 1 E",    cpu_res_1_e     }, // 0x8B
+    { "RES 1 H",    cpu_res_1_h     }, // 0x8C
+    { "RES 1 L",    cpu_res_1_l     }, // 0x8D
+    { "RES 1 [HL]", cpu_res_1_ptr_hl}, // 0x8E
+    { "RES 1 A",    cpu_res_1_a     }, // 0x8F
+    { "RES 2 B",    cpu_res_2_b     }, // 0x90
+    { "RES 2 C",    cpu_res_2_c     }, // 0x91
+    { "RES 2 D",    cpu_res_2_d     }, // 0x92
+    { "RES 2 E",    cpu_res_2_e     }, // 0x93
+    { "RES 2 H",    cpu_res_2_h     }, // 0x94
+    { "RES 2 L",    cpu_res_2_l     }, // 0x95
+    { "RES 2 [HL]", cpu_res_2_ptr_hl}, // 0x96
+    { "RES 2 A",    cpu_res_2_a     }, // 0x97
+    { "RES 3 B",    cpu_res_3_b     }, // 0x98
+    { "RES 3 C",    cpu_res_3_c     }, // 0x99
+    { "RES 3 D",    cpu_res_3_d     }, // 0x9A
+    { "RES 3 E",    cpu_res_3_e     }, // 0x9B
+    { "RES 3 H",    cpu_res_3_h     }, // 0x9C
+    { "RES 3 L",    cpu_res_3_l     }, // 0x9D
+    { "RES 3 [HL]", cpu_res_3_ptr_hl}, // 0x9E
+    { "RES 3 A",    cpu_res_3_a     }, // 0x9F
+    { "RES 4 B",    cpu_res_4_b     }, // 0xA0
+    { "RES 4 C",    cpu_res_4_c     }, // 0xA1
+    { "RES 4 D",    cpu_res_4_d     }, // 0xA2
+    { "RES 4 E",    cpu_res_4_e     }, // 0xA3
+    { "RES 4 H",    cpu_res_4_h     }, // 0xA4
+    { "RES 4 L",    cpu_res_4_l     }, // 0xA5
+    { "RES 4 [HL]", cpu_res_4_ptr_hl}, // 0xA6
+    { "RES 4 A",    cpu_res_4_a     }, // 0xA7
+    { "RES 5 B",    cpu_res_5_b     }, // 0xA8
+    { "RES 5 C",    cpu_res_5_c     }, // 0xA9
+    { "RES 5 D",    cpu_res_5_d     }, // 0xAA
+    { "RES 5 E",    cpu_res_5_e     }, // 0xAB
+    { "RES 5 H",    cpu_res_5_h     }, // 0xAC
+    { "RES 5 L",    cpu_res_5_l     }, // 0xAD
+    { "RES 5 [HL]", cpu_res_5_ptr_hl}, // 0xAE
+    { "RES 5 A",    cpu_res_5_a     }, // 0xAF
+    { "RES 6 B",    cpu_res_6_b     }, // 0xB0
+    { "RES 6 C",    cpu_res_6_c     }, // 0xB1
+    { "RES 6 D",    cpu_res_6_d     }, // 0xB2
+    { "RES 6 E",    cpu_res_6_e     }, // 0xB3
+    { "RES 6 H",    cpu_res_6_h     }, // 0xB4
+    { "RES 6 L",    cpu_res_6_l     }, // 0xB5
+    { "RES 6 [HL]", cpu_res_6_ptr_hl}, // 0xB6
+    { "RES 6 A",    cpu_res_6_a     }, // 0xB7
+    { "RES 7 B",    cpu_res_7_b     }, // 0xB8
+    { "RES 7 C",    cpu_res_7_c     }, // 0xB9
+    { "RES 7 D",    cpu_res_7_d     }, // 0xBA
+    { "RES 7 E",    cpu_res_7_e     }, // 0xBB
+    { "RES 7 H",    cpu_res_7_h     }, // 0xBC
+    { "RES 7 L",    cpu_res_7_l     }, // 0xBD
+    { "RES 7 [HL]", cpu_res_7_ptr_hl}, // 0xBE
+    { "RES 7 A",    cpu_res_7_a     }, // 0xBF
+    { "SET 0 B",    cpu_set_0_b     }, // 0xC0
+    { "SET 0 C",    cpu_set_0_c     }, // 0xC1
+    { "SET 0 D",    cpu_set_0_d     }, // 0xC2
+    { "SET 0 E",    cpu_set_0_e     }, // 0xC3
+    { "SET 0 H",    cpu_set_0_h     }, // 0xC4
+    { "SET 0 L",    cpu_set_0_l     }, // 0xC5
+    { "SET 0 [HL]", cpu_set_0_ptr_hl}, // 0xC6
+    { "SET 0 A",    cpu_set_0_a     }, // 0xC7
+    { "SET 1 B",    cpu_set_1_b     }, // 0xC8
+    { "SET 1 C",    cpu_set_1_c     }, // 0xC9
+    { "SET 1 D",    cpu_set_1_d     }, // 0xCA
+    { "SET 1 E",    cpu_set_1_e     }, // 0xCB
+    { "SET 1 H",    cpu_set_1_h     }, // 0xCC
+    { "SET 1 L",    cpu_set_1_l     }, // 0xCD
+    { "SET 1 [HL]", cpu_set_1_ptr_hl}, // 0xCE
+    { "SET 1 A",    cpu_set_1_a     }, // 0xCF
+    { "SET 2 B",    cpu_set_2_b     }, // 0xD0
+    { "SET 2 C",    cpu_set_2_c     }, // 0xD1
+    { "SET 2 D",    cpu_set_2_d     }, // 0xD2
+    { "SET 2 E",    cpu_set_2_e     }, // 0xD3
+    { "SET 2 H",    cpu_set_2_h     }, // 0xD4
+    { "SET 2 L",    cpu_set_2_l     }, // 0xD5
+    { "SET 2 [HL]", cpu_set_2_ptr_hl}, // 0xD6
+    { "SET 2 A",    cpu_set_2_a     }, // 0xD7
+    { "SET 3 B",    cpu_set_3_b     }, // 0xD8
+    { "SET 3 C",    cpu_set_3_c     }, // 0xD9
+    { "SET 3 D",    cpu_set_3_d     }, // 0xDA
+    { "SET 3 E",    cpu_set_3_e     }, // 0xDB
+    { "SET 3 H",    cpu_set_3_h     }, // 0xDC
+    { "SET 3 L",    cpu_set_3_l     }, // 0xDD
+    { "SET 3 [HL]", cpu_set_3_ptr_hl}, // 0xDE
+    { "SET 3 A",    cpu_set_3_a     }, // 0xDF
+    { "SET 4 B",    cpu_set_4_b     }, // 0xE0
+    { "SET 4 C",    cpu_set_4_c     }, // 0xE1
+    { "SET 4 D",    cpu_set_4_d     }, // 0xE2
+    { "SET 4 E",    cpu_set_4_e     }, // 0xE3
+    { "SET 4 H",    cpu_set_4_h     }, // 0xE4
+    { "SET 4 L",    cpu_set_4_l     }, // 0xE5
+    { "SET 4 [HL]", cpu_set_4_ptr_hl}, // 0xE6
+    { "SET 4 A",    cpu_set_4_a     }, // 0xE7
+    { "SET 5 B",    cpu_set_5_b     }, // 0xE8
+    { "SET 5 C",    cpu_set_5_c     }, // 0xE9
+    { "SET 5 D",    cpu_set_5_d     }, // 0xEA
+    { "SET 5 E",    cpu_set_5_e     }, // 0xEB
+    { "SET 5 H",    cpu_set_5_h     }, // 0xEC
+    { "SET 5 L",    cpu_set_5_l     }, // 0xED
+    { "SET 5 [HL]", cpu_set_5_ptr_hl}, // 0xEE
+    { "SET 5 A",    cpu_set_5_a     }, // 0xEF
+    { "SET 6 B",    cpu_set_6_b     }, // 0xF0
+    { "SET 6 C",    cpu_set_6_c     }, // 0xF1
+    { "SET 6 D",    cpu_set_6_d     }, // 0xF2
+    { "SET 6 E",    cpu_set_6_e     }, // 0xF3
+    { "SET 6 H",    cpu_set_6_h     }, // 0xF4
+    { "SET 6 L",    cpu_set_6_l     }, // 0xF5
+    { "SET 6 [HL]", cpu_set_6_ptr_hl}, // 0xF6
+    { "SET 6 A",    cpu_set_6_a     }, // 0xF7
+    { "SET 7 B",    cpu_set_7_b     }, // 0xF8
+    { "SET 7 C",    cpu_set_7_c     }, // 0xF9
+    { "SET 7 D",    cpu_set_7_d     }, // 0xFA
+    { "SET 7 E",    cpu_set_7_e     }, // 0xFB
+    { "SET 7 H",    cpu_set_7_h     }, // 0xFC
+    { "SET 7 L",    cpu_set_7_l     }, // 0xFD
+    { "SET 7 [HL]", cpu_set_7_ptr_hl}, // 0xFE
+    { "SET 7 A",    cpu_set_7_a     }, // 0xFF
 }
 
