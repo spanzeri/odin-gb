@@ -2,7 +2,7 @@ package odin_gb
 
 import "core:log"
 
-cpu_debug_instructions := true
+cpu_debug_instructions := false
 
 CpuRunState :: enum {
     Running,

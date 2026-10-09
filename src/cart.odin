@@ -354,7 +354,7 @@ cart_open_file :: proc () {
         sdl3.ShowOpenFileDialog(
             file_dialog_callback,
             &logger,
-            root_window,
+            core_get_root_window(),
             raw_data(filters),
             cast(i32)len(filters),
             cast(cstring)sdl3.GetCurrentDirectory(),
