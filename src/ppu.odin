@@ -109,14 +109,19 @@ ppu_advance_clock :: proc (clocks: u32) {
             if ppu_scanline_dot == 79 {
                 ppu_set_lcd_mode(LCDS_MODE_3_DRAWING)
                 discard_pixels = ppu_lcd_registers.scx % 8
+                ppu_debug_clock_spent_in_mode2[ppu_lcd_registers.ly] = ppu_scanline_dot
             }
         } else if ppu_mode == LCDS_MODE_3_DRAWING {
             fetcher_tick()
             shifter_tick()
+            if lcds_ppu_mode() != LCDS_MODE_3_DRAWING {
+                ppu_debug_clock_spent_in_mode3[ppu_lcd_registers.ly] = ppu_scanline_dot
+            }
         } else if ppu_mode == LCDS_MODE_0_H_BLANK {
             if ppu_first_frame_after_lcd_enable && ppu_lcd_registers.ly == 0 {
                 if ppu_scanline_dot == 79 {
                     ppu_set_lcd_mode(LCDS_MODE_3_DRAWING)
+                    ppu_debug_clock_spent_in_mode0[ppu_lcd_registers.ly] = ppu_scanline_dot
                 } else if ppu_scanline_dot == 451 {
                     ppu_scanline_dot = 0
                     ppu_lcd_registers.ly += 1
@@ -125,6 +130,7 @@ ppu_advance_clock :: proc (clocks: u32) {
                 }
             }
             if ppu_scanline_dot == 455 {
+                ppu_debug_clock_spent_in_mode0[ppu_lcd_registers.ly] = ppu_scanline_dot
                 ppu_scanline_dot = 0
                 ppu_lcd_registers.ly += 1
                 if ppu_lcd_registers.ly == 144 {
@@ -139,6 +145,7 @@ ppu_advance_clock :: proc (clocks: u32) {
             }
         } else if ppu_mode == LCDS_MODE_1_V_BLANK {
             if ppu_scanline_dot == 455 {
+                ppu_debug_clock_spent_in_mode1[ppu_lcd_registers.ly] = ppu_scanline_dot
                 ppu_scanline_dot = 0
                 ppu_lcd_registers.ly += 1
                 ppu_check_ly_compare()
@@ -552,6 +559,8 @@ render_debug :: proc() {
         // render_debug_sprites(pixels, pitch, true, 0, 0)         // position over BG
         render_debug_sprites(pixels, pitch, false, 0, 0)      // sprite pixels
         render_debug_window(pixels, pitch, 0, 0)
+        render_debug_viewport(pixels, pitch, 0, 0)
+        render_debug_timings(pixels, cast(int)pitch)
 
         sdl.UnlockTexture(debug_gfx_ctx.texture)
 
@@ -672,11 +681,16 @@ render_debug_sprites :: proc(pixels: []u8, pitch: i32, draw_sprite_position_only
         tile_data := system_memory[0x8000:]
         for index in 0..<40 {
             sprite := get_object_attribute_data(cast(u8)index)
-            pos_y := (scy + cast(int)sprite.pos_y - 16)
-            pos_x := (scx + cast(int)sprite.pos_x -  8)
+            pos_y := (scy + cast(int)sprite.pos_y - 16) % 256
+            pos_x := (scx + cast(int)sprite.pos_x -  8) % 256
+
+            sprite_flip_x := check_bit(sprite.flags, 5)
+            sprite_flip_y := check_bit(sprite.flags, 6)
+
+            sprite_tile_offset := cast(int)sprite.tile_id * 16
 
             for column in 0..<sprite_height {
-                pixel_data_offset := (column * 2) + (cast(int)sprite.tile_id * 16)
+                pixel_data_offset := ((column * 2) if !sprite_flip_y else ((sprite_height-column)*2)) + sprite_tile_offset
                 pixel_data := tile_data[pixel_data_offset:pixel_data_offset + 2]
 
                 pixel_buffer: [8]u8
@@ -694,7 +708,7 @@ render_debug_sprites :: proc(pixels: []u8, pitch: i32, draw_sprite_position_only
                     screen_x := pos_x + row
                     if screen_x < 0 || screen_y < 0 || screen_x >= 512 || screen_y >= 512 do continue
 
-                    color := PPU_DEBUG_COLOR_SPRITE[pixel_buffer[row]]
+                    color := PPU_DEBUG_COLOR_SPRITE[pixel_buffer[row if !sprite_flip_x else 7 - row]]
 
                     pixel_offset := (int(screen_y) + offset_y) * int(pitch) + (int(screen_x) + offset_x) * 4
                     pixels[pixel_offset + 0] = color.a
@@ -712,20 +726,20 @@ render_debug_sprites :: proc(pixels: []u8, pitch: i32, draw_sprite_position_only
 render_debug_window :: proc(pixels: []u8, pitch: i32, offset_x, offset_y: int) {
     if !lcdc_window_enable() do return
 
-    wx := ppu_lcd_registers.wx
-    wy := ppu_lcd_registers.wy
+    wx := cast(int)ppu_lcd_registers.wx
+    wy := cast(int)ppu_lcd_registers.wy
     if wx >= 166 || wy > 143 do return
 
     draw_location_only :: false
 
     if draw_location_only {
-        scx := ppu_lcd_registers.scx
-        scy := ppu_lcd_registers.scy
+        scx := cast(int)ppu_lcd_registers.scx
+        scy := cast(int)ppu_lcd_registers.scy
         for x in wx - 7..<LCD_PIXEL_WIDTH {
             for y in wy..< LCD_PIXEL_HEIGHT {
                 xpos := scx + x
                 ypos := scy + y
-                pixel_offset := (cast(int)ypos + offset_y) * cast(int)pitch + (cast(int)xpos + offset_x) * 4
+                pixel_offset := (ypos + offset_y) * cast(int)pitch + (xpos + offset_x) * 4
                 pixels[pixel_offset + 1] = 255
             }
         }
@@ -733,11 +747,11 @@ render_debug_window :: proc(pixels: []u8, pitch: i32, offset_x, offset_y: int) {
         tile_map_data_window := system_memory[0x9C00 if lcdc_window_tile_map_select() else 0x9800:]
         tile_data := system_memory[0x8000:]
 
-        scx := ppu_lcd_registers.scx
-        scy := ppu_lcd_registers.scy
+        scx := cast(int)ppu_lcd_registers.scx
+        scy := cast(int)ppu_lcd_registers.scy
 
-        tiles_x := cast(int)((LCD_PIXEL_WIDTH - (wx - 7)) / 8)
-        tiles_y := cast(int)((LCD_PIXEL_HEIGHT - (wy - 7)) / 8)
+        tiles_x := (LCD_PIXEL_WIDTH - (wx - 7)) / 8
+        tiles_y := (LCD_PIXEL_HEIGHT - (wy - 7)) / 8
         for tile_x in 0..<tiles_x {
             for tile_y in 0..<tiles_y {
                 tile_index_u := tile_map_data_window[(tile_y * 32) + tile_x]
@@ -758,9 +772,9 @@ render_debug_window :: proc(pixels: []u8, pitch: i32, offset_x, offset_y: int) {
                     pixel_buffer[6] = ((pixel_data[0] & 0b0000_0010) >> 1) | ((pixel_data[1] & 0b0000_0010) >> 0)
                     pixel_buffer[7] = ((pixel_data[0] & 0b0000_0001) >> 0) | ((pixel_data[1] & 0b0000_0001) << 1)
 
-                    screen_y := cast(int)(scy + wy) + tile_y * 8 + row
+                    screen_y := (scy + wy + tile_y * 8 + row) % 256
                     for column in 0..<8 {
-                        screen_x := cast(int)(scx + wx) - 7 + (tile_x * 8) + column
+                        screen_x := (scx + wx - 7 + tile_x * 8 + column) % 256
 
                         if screen_x < 0 || screen_y <0 || screen_x >= 512 || screen_y >= 512 do continue
 
@@ -782,7 +796,61 @@ render_debug_window :: proc(pixels: []u8, pitch: i32, offset_x, offset_y: int) {
 
 @(private="file")
 render_debug_viewport :: proc(pixels: []u8, pitch: i32, offset_x, offset_y: int) {
+    scx := cast(int)ppu_lcd_registers.scx
+    scy := cast(int)ppu_lcd_registers.scy
+    for x in 0..<LCD_PIXEL_WIDTH {
+        wrap_x := (scx + x) % 256
+        wrap_y := (scy + 144) % 256
+        pixels[4 * ((scy * 512) + wrap_x):][3] = 255
+        pixels[4 * ((wrap_y * 512) + wrap_x):][3] = 255
+    }
+    for y in 0..<LCD_PIXEL_HEIGHT {
+        wrap_x := (scx + 160) % 256
+        wrap_y := (scy + y) % 256
+        pixels[4 * ((wrap_y * 512) + scx):][3] = 255
+        pixels[4 * ((wrap_y * 512) + wrap_x):][3] = 255
+    }
+}
 
+@(private="file")
+ppu_debug_clock_spent_in_mode0: [154]u16
+ppu_debug_clock_spent_in_mode1: [154]u16
+ppu_debug_clock_spent_in_mode2: [154]u16
+ppu_debug_clock_spent_in_mode3: [154]u16
+
+@(private="file")
+render_debug_timings :: proc(pixels: []u8, pitch: int) {
+    for row in 0..<154 {
+        screen_y := row + 256
+        start := u16(0)
+        end := ppu_debug_clock_spent_in_mode2[row]
+        for column in start..<end {
+            color := sdl.Color{255, 255, 0, 255} // OAM search = yellow
+            base := pixels[(screen_y * pitch) + cast(int)column * 4:]
+            base[0] = color.a; base[1] = color.b; base[2] = color.g; base[3] = color.r
+        }
+        start = ppu_debug_clock_spent_in_mode2[row]
+        end = ppu_debug_clock_spent_in_mode3[row]
+        for column in start..<end {
+            color := sdl.Color{0, 255, 0, 255} // Draw = green
+            base := pixels[(screen_y * pitch) + cast(int)column * 4:]
+            base[0] = color.a; base[1] = color.b; base[2] = color.g; base[3] = color.r
+        }
+        start = ppu_debug_clock_spent_in_mode3[row]
+        end = ppu_debug_clock_spent_in_mode0[row]
+        for column in start..<end {
+            color := sdl.Color{128, 128, 128, 255} // HBlank = gray
+            base := pixels[(screen_y * pitch) + cast(int)column * 4:]
+            base[0] = color.a; base[1] = color.b; base[2] = color.g; base[3] = color.r
+        }
+        start = ppu_debug_clock_spent_in_mode0[row]
+        end = ppu_debug_clock_spent_in_mode1[row]
+        for column in start..<end {
+            color := sdl.Color{0, 255, 255, 255} // VBlank = teal
+            base := pixels[(screen_y * pitch) + cast(int)column * 4:]
+            base[0] = color.a; base[1] = color.b; base[2] = color.g; base[3] = color.r
+        }
+    }
 }
 
 @(private="file")
